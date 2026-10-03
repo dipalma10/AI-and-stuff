@@ -1,5 +1,8 @@
 # --------------------------------------------------------------
 # CREATE START SCRIPT
+#
+# Created by Mikael Palmqvist, 2026-08-09
+# Version 0.9
 # --------------------------------------------------------------
 
 Write-Host "[8/10] Creating Local AI launcher..." -ForegroundColor Yellow
