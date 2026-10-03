@@ -1,5 +1,9 @@
 # ==============================================================
 # LOCAL AI LAUNCHER - WINDOWS 11
+#
+# Created by Mikael Palmqvist, 2026-08-09
+# Version 0.9
+#
 # ==============================================================
 
 $ErrorActionPreference = "Continue"
