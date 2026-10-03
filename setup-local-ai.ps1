@@ -86,7 +86,7 @@ Write-Host ""
 # --------------------------------------------------------------
 
 
-DISM /Online /Enable-Feature /FeatureName:NetFx3 /All
+DISM /Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart
 
 Write-Host "[0/10] .NET Framework with Dism..." -ForegroundColor Yellow
 
