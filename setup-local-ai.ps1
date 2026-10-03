@@ -82,9 +82,48 @@ Write-Host ""
 
 
 # --------------------------------------------------------------
-# Install .NET Framework with dism
+# Install download and install C++ VRedistributables
 # --------------------------------------------------------------
 
+
+$vcRedistUrls = @(
+    "https://aka.ms/vs/17/release/vc_redist.x86.exe",
+    "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+)
+
+$downloadPath = "$env:TEMP\VC_Redistributables"
+
+if (!(Test-Path -Path $downloadPath)) {
+    New-Item -ItemType Directory -Path $downloadPath | Out-Null
+}
+
+function Install-VC_Redist {
+    param (
+        [string]$url
+    )
+
+    $fileName = $url -split '/' | Select-Object -Last 1
+    $filePath = Join-Path -Path $downloadPath -ChildPath $fileName
+
+    Write-Host "Downloading $fileName..."
+    Invoke-WebRequest -Uri $url -OutFile $filePath
+
+    Write-Host "Installing $fileName..."
+    Start-Process -FilePath $filePath -ArgumentList "/quiet /norestart" -Wait
+
+    Remove-Item -Path $filePath -Force
+}
+
+# Download and install both x86 and x64 versions
+foreach ($url in $vcRedistUrls) {
+    Install-VC_Redist -url $url
+}
+
+Write-Host "Visual Studio Redistributables installed successfully." -ForegroundColor Green
+
+# --------------------------------------------------------------
+# Install .NET Framework 3.5
+# --------------------------------------------------------------
 
 DISM /Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart
 
