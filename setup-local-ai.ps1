@@ -84,39 +84,111 @@ Write-Host ""
 # --------------------------------------------------------------
 # Install download and install C++ VRedistributables
 # --------------------------------------------------------------
-
+#Requires -RunAsAdministrator
 
 $vcRedistUrls = @(
     "https://aka.ms/vs/17/release/vc_redist.x86.exe",
     "https://aka.ms/vs/17/release/vc_redist.x64.exe"
 )
 
-$downloadPath = "$env:TEMP\VC_Redistributables"
-
-if (!(Test-Path -Path $downloadPath)) {
-    New-Item -ItemType Directory -Path $downloadPath | Out-Null
-}
-
-function Install-VC_Redist {
-    param (
-        [string]$url
-    )
-
-    $fileName = $url -split '/' | Select-Object -Last 1
-    $filePath = Join-Path -Path $downloadPath -ChildPath $fileName
-
-    Write-Host "Downloading $fileName..."
-    Invoke-WebRequest -Uri $url -OutFile $filePath
-
-    Write-Host "Installing $fileName..."
-    Start-Process -FilePath $filePath -ArgumentList "/quiet /norestart" -Wait
-
-    Remove-Item -Path $filePath -Force
-}
-
-# Download and install both x86 and x64 versions
 foreach ($url in $vcRedistUrls) {
-    Install-VC_Redist -url $url
+
+    $architecture = if ($url -match "x64") {
+        "x64"
+    }
+    else {
+        "x86"
+    }
+
+    Write-Host ""
+    Write-Host "Checking Microsoft Visual C++ Redistributable ($architecture)..." `
+        -ForegroundColor Cyan
+
+    # Registry location for the requested architecture
+    if ($architecture -eq "x64") {
+        $registryPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        )
+    }
+    else {
+        $registryPaths = @(
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        )
+    }
+
+    $installed = Get-ItemProperty $registryPaths -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.DisplayName -match "Microsoft Visual C\+\+ 2015.*Redistributable"
+        }
+
+    if ($installed) {
+        Write-Host "Already installed:" -ForegroundColor Green
+
+        $installed | ForEach-Object {
+            Write-Host "  $($_.DisplayName)"
+        }
+
+        continue
+    }
+
+    # Download
+    $installer = Join-Path `
+        $env:TEMP `
+        "vc_redist.$architecture.exe"
+
+    Write-Host "Not installed. Downloading..." -ForegroundColor Yellow
+
+    try {
+        Invoke-WebRequest `
+            -Uri $url `
+            -OutFile $installer `
+            -UseBasicParsing
+
+        Write-Host "Installing..." -ForegroundColor Yellow
+
+        $process = Start-Process `
+            -FilePath $installer `
+            -ArgumentList "/install", "/quiet", "/norestart" `
+            -Wait `
+            -PassThru
+
+        switch ($process.ExitCode) {
+
+            0 {
+                Write-Host `
+                    "Microsoft Visual C++ Redistributable ($architecture) installed successfully." `
+                    -ForegroundColor Green
+            }
+
+            1638 {
+                Write-Host `
+                    "A newer version is already installed." `
+                    -ForegroundColor Green
+            }
+
+            3010 {
+                Write-Host `
+                    "Installed successfully. Reboot required." `
+                    -ForegroundColor Yellow
+            }
+
+            default {
+                Write-Host `
+                    "Installation failed. Exit code: $($process.ExitCode)" `
+                    -ForegroundColor Red
+            }
+        }
+    }
+    catch {
+        Write-Host `
+            "ERROR: $($_.Exception.Message)" `
+            -ForegroundColor Red
+    }
+    finally {
+        if (Test-Path $installer) {
+            Remove-Item $installer -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 Write-Host "Visual Studio Redistributables installed successfully." -ForegroundColor Green
@@ -513,4 +585,3 @@ Write-Host "components before using the system completely offline."
 Write-Host ""
 
 Read-Host "Press ENTER to finish"
-```
