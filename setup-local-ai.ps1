@@ -197,7 +197,48 @@ Write-Host "Visual Studio Redistributables installed successfully." -ForegroundC
 # Install .NET Framework 3.5
 # --------------------------------------------------------------
 
-DISM /Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart
+
+Write-Host ""
+Write-Host "Checking .NET Framework 3.5..." -ForegroundColor Cyan
+
+$dismOutput = dism.exe /online /Get-FeatureInfo /FeatureName:NetFx3 2>&1 |
+    Out-String
+
+if ($dismOutput -match "State : Enabled") {
+
+    Write-Host ".NET Framework 3.5 is already installed." -ForegroundColor Green
+
+}
+else {
+
+    Write-Host ".NET Framework 3.5 is not installed." -ForegroundColor Yellow
+    Write-Host "Installing .NET Framework 3.5..." -ForegroundColor Yellow
+
+    $process = Start-Process `
+        -FilePath "dism.exe" `
+        -ArgumentList "/Online", "/Enable-Feature", "/FeatureName:NetFx3", "/All", "/NoRestart" `
+        -Wait `
+        -PassThru `
+        -NoNewWindow
+
+    switch ($process.ExitCode) {
+
+        0 {
+            Write-Host ".NET Framework 3.5 installed successfully." `
+                -ForegroundColor Green
+        }
+
+        3010 {
+            Write-Host ".NET Framework 3.5 installed successfully. Reboot required." `
+                -ForegroundColor Yellow
+        }
+
+        default {
+            Write-Host ".NET Framework 3.5 installation failed. Exit code: $($process.ExitCode)" `
+                -ForegroundColor Red
+        }
+    }
+}
 
 Write-Host "[0/10] .NET Framework with Dism..." -ForegroundColor Yellow
 
