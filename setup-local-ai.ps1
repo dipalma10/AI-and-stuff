@@ -260,19 +260,130 @@ Write-Host "       OK" -ForegroundColor Green
 
 Write-Host "[2/10] Checking Ollama..." -ForegroundColor Yellow
 
-$OllamaCommand = Get-Command ollama -ErrorAction SilentlyContinue
+#Requires -Version 5.1
 
-if (-not $OllamaCommand) {
+$ErrorActionPreference = "Stop"
 
-    Write-Host ""
-    Write-Host "Ollama was not found." -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Install Ollama first, then run this script again."
-    Write-Host ""
-    Read-Host "Press ENTER to exit"
-    exit 1
+$OllamaUrl = "https://ollama.com/download/OllamaSetup.exe"
+$Installer = Join-Path $env:TEMP "OllamaSetup.exe"
+$Model = "qwen2.5:3b"
+
+Write-Host "=== Ollama / Qwen 2.5 3B Setup ===" -ForegroundColor Cyan
+
+# ------------------------------------------------------------
+# Find Ollama
+# ------------------------------------------------------------
+$Ollama = Get-Command ollama -ErrorAction SilentlyContinue
+
+if (-not $Ollama) {
+    $DefaultOllama = "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe"
+
+    if (Test-Path $DefaultOllama) {
+        $Ollama = Get-Item $DefaultOllama
+    }
 }
 
+# ------------------------------------------------------------
+# Install Ollama if missing
+# ------------------------------------------------------------
+if (-not $Ollama) {
+    Write-Host "Ollama is not installed. Downloading installer..." -ForegroundColor Yellow
+
+    Invoke-WebRequest `
+        -Uri $OllamaUrl `
+        -OutFile $Installer
+
+    Write-Host "Installing Ollama..." -ForegroundColor Yellow
+
+    Start-Process `
+        -FilePath $Installer `
+        -ArgumentList "/S" `
+        -Wait
+
+    Remove-Item $Installer -Force -ErrorAction SilentlyContinue
+
+    # Refresh PATH
+    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") +
+                ";" +
+                [Environment]::GetEnvironmentVariable("Path", "User")
+
+    $Ollama = Get-Command ollama -ErrorAction SilentlyContinue
+
+    if (-not $Ollama) {
+        $DefaultOllama = "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe"
+
+        if (Test-Path $DefaultOllama) {
+            $Ollama = Get-Item $DefaultOllama
+        }
+    }
+
+    if (-not $Ollama) {
+        throw "Ollama installation completed, but ollama.exe could not be found. Restart PowerShell and run the script again."
+    }
+
+    Write-Host "Ollama installed successfully." -ForegroundColor Green
+}
+else {
+    Write-Host "Ollama is already installed." -ForegroundColor Green
+}
+
+# ------------------------------------------------------------
+# Start Ollama if necessary
+# ------------------------------------------------------------
+Write-Host "Checking Ollama service..." -ForegroundColor Cyan
+
+try {
+    & ollama list | Out-Null
+}
+catch {
+    Write-Host "Starting Ollama..." -ForegroundColor Yellow
+
+    $OllamaPath = $Ollama.Source
+
+    if (-not $OllamaPath) {
+        $OllamaPath = $Ollama.Path
+    }
+
+    Start-Process -FilePath $OllamaPath
+
+    Start-Sleep -Seconds 3
+}
+
+# ------------------------------------------------------------
+# Check whether model exists
+# ------------------------------------------------------------
+Write-Host "Checking for $Model..." -ForegroundColor Cyan
+
+$Models = & ollama list 2>$null
+
+if ($Models -match "(?m)^qwen2\.5:3b\s") {
+    Write-Host "$Model is already installed." -ForegroundColor Green
+}
+else {
+    Write-Host "$Model is not installed. Downloading..." -ForegroundColor Yellow
+
+    & ollama pull $Model
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to download $Model."
+    }
+
+    Write-Host "$Model installed successfully." -ForegroundColor Green
+}
+
+# ------------------------------------------------------------
+# Final verification
+# ------------------------------------------------------------
+Write-Host ""
+Write-Host "=== Installation Status ===" -ForegroundColor Cyan
+
+& ollama --version
+
+Write-Host ""
+& ollama list
+
+Write-Host ""
+Write-Host "Setup complete." -ForegroundColor Green
 Write-Host "       Ollama found." -ForegroundColor Green
 
 # --------------------------------------------------------------
